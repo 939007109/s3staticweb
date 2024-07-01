@@ -1,37 +1,34 @@
-name: Deploy to S3 using IAM Role
+# This is a basic workflow to help you get started with Actions
+name:Connect to an AWS role from a GitHub repository
 
+# Controls when the action will run. Invokes the workflow on push events but only for the main branch
 on:
   push:
-    branches:
-      - main  # Deploy when pushing to the main branch
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
+env:
+  
+  AWS_REGION : <"us-east-1"> #Change to reflect your Region
+
+# Permission can be added at job level or workflow level    
+permissions:
+      id-token: write   # This is required for requesting the JWT
+      contents: read    # This is required for actions/checkout
 jobs:
-  deploy:
+  AssumeRoleAndCallIdentity:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2  # Checks out your repository's code
-
-      - name: Get AWS temporary credentials
-        id: sts-get-session-token
-        run: |
-          ROLE_ARN="${{ secrets.AWS_ROLE_ARN }}"
-          CREDENTIALS=$(aws sts assume-role --role-arn "$ROLE_ARN" --role-session-name GitHubActionsSession --duration-seconds 900)
-          echo "::set-output name=AWS_ACCESS_KEY_ID::$(echo "$CREDENTIALS" | jq -r '.Credentials.AccessKeyId')"
-          echo "::set-output name=AWS_SECRET_ACCESS_KEY::$(echo "$CREDENTIALS" | jq -r '.Credentials.SecretAccessKey')"
-          echo "::set-output name=AWS_SESSION_TOKEN::$(echo "$CREDENTIALS" | jq -r '.Credentials.SessionToken')"
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Git clone the repository
+        uses: actions/checkout@v3
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
-          aws-access-key-id: ${{ steps.sts-get-session-token.outputs.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ steps.sts-get-session-token.outputs.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ steps.sts-get-session-token.outputs.AWS_SESSION_TOKEN }}
-          aws-region: YOUR_AWS_REGION  # Replace with your AWS region
-
-      - name: Sync to S3
+          role-to-assume: <arn:aws:iam::074460675775:role/github-AssumeRoleWithAction> #change to reflect your IAM role’s ARN
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ env.AWS_REGION }}
+      # Hello from AWS: WhoAmI
+      - name: Sts GetCallerIdentity
         run: |
-          aws s3 sync . s3://${{ secrets.AWS_S3_BUCKET }} --delete --acl public-read
-        env:
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          aws sts get-caller-identity
